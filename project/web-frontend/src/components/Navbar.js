@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import NotificationsDropdown from './NotificationsDropdown';
+import { notificationsAPI } from '../services/api';
 
 const Navbar = ({ activePage }) => {
     const [hideHeader, setHideHeader] = useState(false);
@@ -26,10 +28,14 @@ const Navbar = ({ activePage }) => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
   const { user, logout } = useAuth();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef(null);
   const buttonRef = useRef(null);
+  const notifButtonRef = useRef(null);
+  const notifPanelRef = useRef(null);
 
   const handleProfileDropdown = () => {
     setDropdownOpen(prev => !prev);
@@ -37,20 +43,41 @@ const Navbar = ({ activePage }) => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (
-        dropdownRef.current &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target) &&
-        !dropdownRef.current.contains(event.target)
-      ) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+        if (
+          dropdownRef.current &&
+          buttonRef.current &&
+          !buttonRef.current.contains(event.target) &&
+          !dropdownRef.current.contains(event.target)
+        ) {
+          setDropdownOpen(false);
+        }
+        if (
+          notifPanelRef.current &&
+          notifButtonRef.current &&
+          !notifButtonRef.current.contains(event.target) &&
+          !notifPanelRef.current.contains(event.target)
+        ) {
+          setShowNotifications(false);
+        }
+      };
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    notificationsAPI.getNotifications().then(res => {
+      if (!mounted) return;
+      const data = res.data || [];
+      const unread = data.filter(d => !d.read).length;
+      setNotifCount(unread);
+    }).catch(()=>{});
+    return () => { mounted = false; };
+  }, [user]);
+
   return (
+    <>
     <header className="site-header">
       {/* Sticky Logo always visible */}
       <div className={`logo-standalone${stickyNav ? ' sticky-logo' : ''}`}> 
@@ -74,43 +101,62 @@ const Navbar = ({ activePage }) => {
           </div>
           <div className="header-actions">
             {user ? (
-              <div className="user-profile-dropdown">
-                <button className="user-profile-btn" onClick={handleProfileDropdown} ref={buttonRef}>
-                  <div className="user-avatar">
-                    {user.profile_picture ? (
-                      <img
-                        src={`/uploads/profiles/${user.profile_picture}`}
-                        alt={user.first_name}
-                      />
-                    ) : (
-                      <i className={`fas ${user.is_admin ? 'fa-user-shield' : 'fa-user'}`}></i>
-                    )}
-                  </div>
-                  <span className="user-name">{user?.first_name || 'User'}</span>
-                  <i className="fas fa-chevron-down"></i>
-                </button>
-                <div className={`profile-dropdown${dropdownOpen ? ' show' : ''}`} ref={dropdownRef}>
-                  <Link to="/profile" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
-                    <i className="fas fa-user-edit"></i> Edit Profile
-                  </Link>
-                  <Link to="/cart" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
-                    <i className="fas fa-shopping-cart"></i> My Cart
-                  </Link>
-                  <Link to="/orders" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
-                    <i className="fas fa-shopping-bag"></i> My Orders
-                  </Link>
-                  {user.is_admin && (
-                    <>
-                      <div className="dropdown-divider"></div>
-                      <Link to="/admin-dashboard" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
-                        <i className="fas fa-chart-bar"></i> Admin Dashboard
-                      </Link>
-                    </>
-                  )}
-                  <div className="dropdown-divider"></div>
-                  <button onClick={() => { setDropdownOpen(false); logout(); }} className="dropdown-item logout">
-                    <i className="fas fa-sign-out-alt"></i> Logout
+              <div className="header-actions-inner" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    className="notif-btn"
+                    onClick={(e) => { e.stopPropagation(); setShowNotifications(prev => !prev); }}
+                    aria-label="Notifications"
+                    ref={notifButtonRef}
+                  >
+                    <i className="fas fa-bell"></i>
+                    {notifCount > 0 && <span className="notif-badge">{notifCount}</span>}
                   </button>
+                  <NotificationsDropdown
+                    visible={showNotifications}
+                    onClose={() => { setShowNotifications(false); notificationsAPI.getNotifications().then(res=>{ const d = res.data||[]; setNotifCount(d.filter(x=>!x.read).length); }).catch(()=>{}); }}
+                    ref={notifPanelRef}
+                  />
+                </div>
+
+                <div className="user-profile-dropdown">
+                  <button className="user-profile-btn" onClick={handleProfileDropdown} ref={buttonRef}>
+                    <span className="user-avatar">
+                      {user.profile_picture ? (
+                        <img src={`/uploads/profiles/${user.profile_picture}`} alt={user.first_name} />
+                      ) : (
+                        <i className={`fas ${user.is_admin ? 'fa-user-shield' : 'fa-user'}`}></i>
+                      )}
+                    </span>
+                    <span className="user-name">{user?.first_name || 'User'}</span>
+                    <i className="fas fa-chevron-down"></i>
+                  </button>
+
+                  <div className={`profile-dropdown${dropdownOpen ? ' show' : ''}`} ref={dropdownRef}>
+                    <div className="dropdown-content">
+                      <Link to="/profile" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                        <i className="fas fa-user-edit"></i> Edit Profile
+                      </Link>
+                      <Link to="/cart" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                        <i className="fas fa-shopping-cart"></i> My Cart
+                      </Link>
+                      <Link to="/orders" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                        <i className="fas fa-shopping-bag"></i> My Orders
+                      </Link>
+                      {user.is_admin && (
+                        <>
+                          <div className="dropdown-divider"></div>
+                          <Link to="/admin-dashboard" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                            <i className="fas fa-chart-bar"></i> Admin Dashboard
+                          </Link>
+                        </>
+                      )}
+                      <div className="dropdown-divider"></div>
+                      <button onClick={() => { setDropdownOpen(false); logout(); }} className="dropdown-item logout">
+                        <i className="fas fa-sign-out-alt"></i> Logout
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -139,9 +185,21 @@ const Navbar = ({ activePage }) => {
               <li><Link to="/farmer-dashboard" className={activePage === 'myshop' ? 'active' : ''} onClick={handleNavClick}>My Shop</Link></li>
             )}
           </ul>
+          <div className="nav-right">
+            {user && user.is_farmer && (
+              <Link to="/co-vendors" className="btn btn-primary vendors-shop-btn" onClick={handleNavClick} style={{ marginRight: 12 }}>
+                <i className="fas fa-store"></i> Vendors Marketplace
+              </Link>
+            )}
+            <Link to="/cart" className="navbar-cart" onClick={handleNavClick} aria-label="View cart">
+              <i className="fas fa-shopping-cart"></i>
+              <span className="cart-text">Cart</span>
+            </Link>
+          </div>
         </div>
       </nav>
     </header>
+    </>
   );
 };
 

@@ -288,6 +288,11 @@
   align-items: center;
 }
 
+/* Make header container a positioning context so header-actions can be pinned to the right edge */
+.main-header .header-container {
+  position: relative;
+}
+
 .logo-link {
   text-decoration: none;
   color: inherit;
@@ -369,6 +374,80 @@
   margin-left: auto; /* ensure header-actions sits at the far right */
   /* To modify: change justify-content to center or left as needed */
 }
+
+/* Pin the action group to the right edge of the header container so it isn't affected by other margins */
+.header-actions {
+  /* default: inline within header container */
+  position: static;
+}
+
+@media (min-width: 769px) {
+  /* Pin actions to the viewport right edge on desktop */
+  .header-actions {
+    position: fixed;
+    right: 80px;
+    top: 14px;
+    margin-left: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+}
+
+/* Notification button and panel */
+.notif-btn {
+  background: transparent;
+  border: none;
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #27472a;
+  cursor: pointer;
+}
+.notif-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: #dc2626;
+  color: white;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  line-height: 1;
+}
+.notifications-panel {
+  position: absolute;
+  right: 12px;
+  top: 54px;
+  width: 320px;
+  max-height: 420px;
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(15,23,42,0.12);
+  overflow: hidden;
+  z-index: 2000;
+}
+.notifications-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 12px;
+  border-bottom:1px solid #f1f1f1;
+  background:#fafafa;
+}
+.notifications-list { max-height: 360px; overflow:auto; }
+.notif-item { padding: 10px 12px; border-bottom:1px solid #f6f6f6; cursor:pointer; }
+.notif-item.unread { background:#f3fff3; }
+.notif-subject { font-weight:600; font-size:13px; color:#0f5132; }
+.notif-message { font-size:13px; color:#374151; margin-top:6px; }
+.notif-time { font-size:11px; color:#9ca3af; margin-top:8px; }
+.notif-empty { padding:16px; color:#6b7280; }
+.notifications-panel .close-ctrl { background:transparent; border:none; font-size:18px; cursor:pointer; }
 
 .auth-buttons {
   display: flex;
@@ -535,6 +614,66 @@
   z-index: 2;
 }
 
+/* Right side area for cart / actions inside navbar */
+.nav-right {
+  position: absolute;
+  right: 120px; /* moved left from the edge to sit away from other buttons */
+  top: 0;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 8px;
+  z-index: 1003;
+}
+
+.navbar-cart {
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  font-size: 16px;
+  border-radius: 8px;
+  transition: background 0.2s, transform 0.08s;
+}
+
+/* Password show/hide toggle for auth forms */
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.password-field .form-control {
+  padding-right: 44px;
+}
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #4b5563;
+  font-size: 14px;
+  padding: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.password-toggle:focus {
+  outline: none;
+}
+.navbar-cart:hover {
+  background: rgba(255,255,255,0.06);
+  transform: translateY(-1px);
+}
+
+/* Keep cart visible and compact on mobile */
+@media (max-width: 768px) {
+  .nav-right { right: 8px; }
+  .navbar-cart { padding: 8px; font-size: 18px; }
+}
+
 /* User Profile Dropdown in Header */
 .user-profile-dropdown {
   position: relative;
@@ -583,6 +722,51 @@
 .user-name {
   font-weight: 500;
   color: #333;
+
+}
+
+/* Vendors Marketplace button styling (farmer-only) */
+.vendors-shop-btn {
+  background: linear-gradient(180deg, #2e7d32 0%, #38a03a 100%);
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 4px 10px rgba(46,125,50,0.08);
+  line-height: 1;
+}
+.vendors-shop-btn:hover {
+  transform: translateY(-1px);
+}
+.vendors-shop-btn i { font-size: 14px; color: #fff; }
+
+/* Navbar cart button: show icon + label */
+.navbar-cart {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.12s;
+}
+.navbar-cart i { font-size: 16px; }
+.navbar-cart .cart-text {
+  font-weight: 600;
+  color: #fff;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.navbar-cart:hover {
+  background: rgba(255,255,255,0.06);
+  transform: translateY(-1px);
 }
 
 .user-profile-btn .fa-chevron-down {
@@ -766,22 +950,38 @@
 }
 
 .stat-card {
-  background: white;
+  background: #ffffff;
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 28px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16,24,40,0.06);
   text-align: center !important;
+  border: 1px solid rgba(16,24,40,0.04);
 }
 
+.stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  box-shadow: 0 8px 20px rgba(16,24,40,0.08);
+  margin-bottom: 12px;
+  border: 1px solid rgba(16,24,40,0.04);
+}
+
+
 .stat-number {
-  font-size: 2.5em;
-  font-weight: bold;
-  color: #2c7a2c;
+  font-size: 2.4em;
+  font-weight: 800;
+  color: #14532d;
 }
 
 .stat-label {
-  color: #666;
+  color: #444;
   margin-top: 8px;
+  font-weight: 600;
 }
 
 .verification-list {
@@ -2438,4 +2638,40 @@
   .product-info h3 {
     font-size: 0.95rem;
   }
+}
+
+/* Vendors Shop: slightly more compact product cards */
+.vendors-shop .products-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.vendors-shop .product-card {
+  padding: 8px;
+  min-height: 260px;
+  font-size: 0.88rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+/* Prevent single card from stretching to full-width: center and constrain size */
+.vendors-shop .products-grid {
+  justify-items: center; /* center grid items inside their columns */
+}
+
+.vendors-shop .product-card {
+  max-width: 360px; /* don't grow beyond this */
+  width: 100%;
+  justify-self: center; /* center inside column */
+}
+
+.vendors-shop .product-image {
+  height: 110px;
+  min-height: 90px;
+}
+
+.vendors-shop .product-info h3 { font-size: 0.98rem; }
+
+@media (max-width: 480px) {
+  .vendors-shop .products-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .vendors-shop .product-image { height: 88px; min-height: 88px; }
 }

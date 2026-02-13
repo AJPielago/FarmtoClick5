@@ -309,7 +309,7 @@ def _fuzzy_match_score(query, candidate):
     return score
 
 
-def suggest_price(db, product_name, unit='kg', category=None):
+def suggest_price(db, product_name, unit='kg', category=None, markup_override=None):
     """
     Suggest a retail price for a product based on DTI records.
 
@@ -382,10 +382,23 @@ def suggest_price(db, product_name, unit='kg', category=None):
 
     dti_avg_price = round(weighted_price_sum / total_weight, 2) if total_weight > 0 else 0
 
+    # Determine markup to apply. Allow override (e.g., 0.15 for co-vendors)
+    if markup_override is None:
+        markup_min = MARKUP_MIN
+        markup_max = MARKUP_MAX
+    else:
+        try:
+            m = float(markup_override)
+            markup_min = m
+            markup_max = m
+        except Exception:
+            markup_min = MARKUP_MIN
+            markup_max = MARKUP_MAX
+
     # Apply markup
-    suggested_low = round(dti_avg_price * (1 + MARKUP_MIN), 2)   # +20 %
-    suggested_high = round(dti_avg_price * (1 + MARKUP_MAX), 2)  # +20 %
-    auto_price = round(dti_avg_price * (1 + MARKUP_MAX), 2)     # primary auto-price = +20%
+    suggested_low = round(dti_avg_price * (1 + markup_min), 2)
+    suggested_high = round(dti_avg_price * (1 + markup_max), 2)
+    auto_price = round(dti_avg_price * (1 + markup_max), 2)
     suggested_mid = round((suggested_low + suggested_high) / 2, 2)
 
     return {
@@ -398,10 +411,10 @@ def suggest_price(db, product_name, unit='kg', category=None):
         'confidence': round(best_score, 2),
         'matched_products': matched_products,
         'unit': unit,
-        'markup_pct': MARKUP_MAX * 100,
-        'markup_range': '20%',
-        'markup_min_pct': MARKUP_MIN * 100,
-        'markup_max_pct': MARKUP_MAX * 100,
+        'markup_pct': markup_max * 100,
+        'markup_range': f"{int(markup_min*100)}-{int(markup_max*100)}%" if markup_min != markup_max else f"{int(markup_max*100)}%",
+        'markup_min_pct': markup_min * 100,
+        'markup_max_pct': markup_max * 100,
     }
 
 

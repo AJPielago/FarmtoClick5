@@ -129,6 +129,9 @@ const AdminDashboard = () => {
   }
 
   const kpis = reports?.kpis || {};
+  const assumedMarginPct = kpis.assumed_margin_pct ?? 15; // default 15% markup if not provided by backend
+  const totalRevenueForCalc = (kpis.total_revenue !== undefined && kpis.total_revenue !== null) ? kpis.total_revenue : stats.totalRevenue;
+  const estimatedProfit = Number(totalRevenueForCalc) * (Number(assumedMarginPct) / 100);
 
   return (
     <div className="admin-dashboard-page">
@@ -142,8 +145,8 @@ const AdminDashboard = () => {
             <>
               {/* KPI Cards */}
               <div className="admin-stats-grid">
-                <div className="stat-card">
-                  <div className="stat-icon" style={{ background: '#e3f2fd', color: '#1565c0' }}><i className="fas fa-peso-sign"></i></div>
+                <div className="stat-card stat-revenue">
+                  <div className="stat-icon" style={{ background: '#047857', color: '#ffffff' }}><i className="fas fa-peso-sign"></i></div>
                   <div className="stat-info">
                     <div className="stat-number">{formatCurrency(stats.totalRevenue)}</div>
                     <div className="stat-label">Total Revenue</div>
@@ -155,8 +158,17 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="stat-card">
-                  <div className="stat-icon" style={{ background: '#fff3e0', color: '#e65100' }}><i className="fas fa-shopping-bag"></i></div>
+                <div className="stat-card stat-profit">
+                  <div className="stat-icon" style={{ background: '#fbbf24', color: '#ffffff' }}><i className="fas fa-coins"></i></div>
+                  <div className="stat-info">
+                    <div className="stat-number">{formatCurrency(estimatedProfit)}</div>
+                    <div className="stat-label">Estimated Profit</div>
+                    <div className="stat-sub">Assumed margin: {assumedMarginPct}%</div>
+                  </div>
+                </div>
+
+                <div className="stat-card stat-orders">
+                  <div className="stat-icon" style={{ background: '#c2410c', color: '#ffffff' }}><i className="fas fa-shopping-bag"></i></div>
                   <div className="stat-info">
                     <div className="stat-number">{stats.totalOrders}</div>
                     <div className="stat-label">Total Orders</div>
@@ -164,8 +176,8 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="stat-card">
-                  <div className="stat-icon" style={{ background: '#e8f5e9', color: '#2e7d32' }}><i className="fas fa-check-circle"></i></div>
+                <div className="stat-card stat-completed">
+                  <div className="stat-icon" style={{ background: '#16a34a', color: '#ffffff' }}><i className="fas fa-check-circle"></i></div>
                   <div className="stat-info">
                     <div className="stat-number">{kpis.completed_orders || 0}</div>
                     <div className="stat-label">Completed Orders</div>
@@ -173,8 +185,8 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="stat-card">
-                  <div className="stat-icon" style={{ background: '#f3e5f5', color: '#7b1fa2' }}><i className="fas fa-user-tie"></i></div>
+                <div className="stat-card stat-farmers">
+                  <div className="stat-icon" style={{ background: '#6d28d9', color: '#ffffff' }}><i className="fas fa-user-tie"></i></div>
                   <div className="stat-info">
                     <div className="stat-number">{stats.totalFarmers}</div>
                     <div className="stat-label">Active Farmers</div>
@@ -182,8 +194,8 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="stat-card">
-                  <div className="stat-icon" style={{ background: '#fce4ec', color: '#c62828' }}><i className="fas fa-hourglass-half"></i></div>
+                <div className="stat-card stat-pending">
+                  <div className="stat-icon" style={{ background: '#b91c1c', color: '#ffffff' }}><i className="fas fa-hourglass-half"></i></div>
                   <div className="stat-info">
                     <div className="stat-number">{stats.pendingVerifications}</div>
                     <div className="stat-label">Pending Verifications</div>
@@ -529,43 +541,47 @@ const AdminDashboard = () => {
         }
 
         .stat-card {
-          background: white;
+          background: linear-gradient(180deg, #ffffff 0%, #f8fff8 100%);
           border-radius: 12px;
-          padding: 22px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+          padding: 18px 22px;
+          box-shadow: 0 6px 18px rgba(16,24,40,0.06);
           display: flex;
           align-items: center;
           gap: 18px;
           transition: transform .2s, box-shadow .2s;
+          border: 1px solid rgba(44,122,44,0.06);
         }
         .stat-card:hover {
           transform: translateY(-4px);
-          box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+          box-shadow: 0 10px 28px rgba(16,24,40,0.10);
         }
 
         .stat-icon {
           font-size: 1.6rem;
-          width: 54px; height: 54px;
+          width: 56px; height: 56px;
           border-radius: 12px;
           display: flex; align-items: center; justify-content: center;
           flex-shrink: 0;
+          box-shadow: 0 8px 20px rgba(16,24,40,0.07);
+          border: 1px solid rgba(16,24,40,0.04);
         }
 
         .stat-number {
           font-size: 1.6rem;
-          font-weight: 700;
-          color: #1a1a1a;
+          font-weight: 800;
+          color: #14532d;
         }
 
         .stat-label {
           font-size: .85rem;
-          color: #888;
+          color: #444;
           margin-top: 2px;
+          font-weight: 600;
         }
 
         .stat-sub {
           font-size: .78rem;
-          color: #aaa;
+          color: #6b7280;
           margin-top: 2px;
         }
 

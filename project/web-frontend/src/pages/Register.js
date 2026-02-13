@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Navbar from '../components/Navbar';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -12,6 +11,8 @@ const Register = () => {
     last_name: '',
     phone: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [flashMessages, setFlashMessages] = useState([]);
   const { register } = useAuth();
@@ -55,7 +56,6 @@ const Register = () => {
 
   return (
     <div className="auth-page">
-      <Navbar />
 
       {/* Flash Messages */}
       {flashMessages.length > 0 && (
@@ -137,28 +137,48 @@ const Register = () => {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Password</label>
-                  <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="form-control"
-                    required
-                    minLength="6"
-                  />
+                  <div className="password-field">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      className="form-control"
+                      required
+                      minLength="6"
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle"
+                      onClick={() => setShowPassword(s => !s)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <i className={`fas fa-${showPassword ? 'eye-slash' : 'eye'}`}></i>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">Confirm Password</label>
-                  <input
-                    type="password"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    className="form-control"
-                    required
-                    minLength="6"
-                  />
+                  <div className="password-field">
+                    <input
+                      type={showConfirm ? 'text' : 'password'}
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      className="form-control"
+                      required
+                      minLength="6"
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle"
+                      onClick={() => setShowConfirm(s => !s)}
+                      aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                    >
+                      <i className={`fas fa-${showConfirm ? 'eye-slash' : 'eye'}`}></i>
+                    </button>
+                  </div>
                 </div>
               </div>
 

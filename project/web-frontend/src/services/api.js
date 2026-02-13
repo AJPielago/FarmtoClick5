@@ -52,6 +52,7 @@ export const productsAPI = {
   getAll: () => api.get('/api/products'),
   getById: (id) => api.get(`/api/products/${id}`),
   getProducts: () => api.get('/api/farmer/products'),
+  getCovendors: () => api.get('/api/products/covendors'),
   addProduct: (formData) => api.post('/api/farmer/products', formData),
   updateProduct: (id, formData) => api.put(`/api/farmer/products/${id}`, formData),
   deleteProduct: (id) => api.delete(`/api/farmer/products/${id}`),
@@ -65,6 +66,11 @@ export const farmersAPI = {
 export const userAPI = {
   getProfile: () => api.get('/api/user/profile'),
   updateProfile: (userData) => api.put('/api/user/profile', userData),
+};
+
+export const notificationsAPI = {
+  getNotifications: () => api.get('/api/user/notifications'),
+  markAsRead: (id) => api.post(`/api/user/notifications/${id}/read`),
 };
 
 export const cartAPI = {
@@ -89,16 +95,12 @@ export const ordersAPI = {
 };
 
 export const dtiAPI = {
-  suggestPrice: (name, unit, category) =>
-    api.get('/api/dti/suggest-price', { params: { name, unit, category } }),
+  suggestPrice: (name, unit, category, audience) => api.get('/api/dti/suggest-price', { params: { name, unit, category, audience } }),
   suggestProductNames: (name, limit = 10) =>
     api.get('/api/dti/product-suggestions', { params: { name, limit } }),
   getPrices: () => api.get('/api/dti/prices'),
   uploadPdf: (formData) => api.post('/api/dti/upload-pdf', formData),
-  manualEntry: (data) => api.post('/api/dti/manual-entry', data),
-  bulkEntry: (records) => api.post('/api/dti/bulk-entry', { records }),
-  deleteRecord: (id) => api.delete(`/api/dti/records/${id}`),
-  deleteBatch: (batchId) => api.delete(`/api/dti/batch/${batchId}`),
+  // Bulk delete DTI records (Admin only). body: { record_ids: [...], delete_all: bool }
   bulkDelete: (recordIds, deleteAll = false) =>
     api.post('/api/dti/records/bulk-delete', { record_ids: recordIds, delete_all: deleteAll }),
 };

@@ -15,6 +15,7 @@ import ManageProducts from './pages/ManageProducts';
 import StartSelling from './pages/StartSelling';
 import FarmerProfile from './pages/FarmerProfile';
 import FarmerVerify from './pages/FarmerVerify';
+import CoVendorsMarketplace from './pages/CoVendorsMarketplace';
 import AdminDashboard from './pages/AdminDashboard';
 import PermitVerificationDashboard from './pages/PermitVerificationDashboard';
 import DTIPriceManagement from './pages/DTIPriceManagement';
@@ -37,6 +38,7 @@ function App() {
             <Route path="/orders" element={<Orders />} />
             <Route path="/farmer-dashboard" element={<FarmerDashboard />} />
             <Route path="/manage-products" element={<ManageProducts />} />
+            <Route path="/co-vendors" element={<CoVendorsMarketplace />} />
             <Route path="/start-selling" element={<StartSelling />} />
             <Route path="/farmer/:id" element={<FarmerProfile />} />
             <Route path="/farmer-verify" element={<FarmerVerify />} />

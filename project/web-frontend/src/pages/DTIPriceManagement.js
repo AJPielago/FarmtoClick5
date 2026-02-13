@@ -9,17 +9,9 @@ const DTIPriceManagement = () => {
   const [records, setRecords] = useState([]);
   const [flashMessages, setFlashMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('records'); // records, upload, manual, bulk
+  const [activeTab, setActiveTab] = useState('records'); // records, upload
 
-  // Manual entry form
-  const [manualForm, setManualForm] = useState({
-    product_name: '', price_low: '', price_high: '', unit: 'kg'
-  });
-
-  // Bulk entry
-  const [bulkRows, setBulkRows] = useState([
-    { product_name: '', price_low: '', price_high: '', unit: 'kg' }
-  ]);
+  // manual and bulk entry removed
 
   // PDF upload
   const [pdfFile, setPdfFile] = useState(null);
@@ -27,10 +19,12 @@ const DTIPriceManagement = () => {
 
   // Search/filter
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // (no toggle) always show newest-per-product unless a date filter is set
+  // Date filter (yyyy-mm-dd) — when set, display records from that date
+  const [selectedDate, setSelectedDate] = useState('');
 
-  // Selection for bulk delete
-  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(new Set());
+  // (delete features removed) selection and bulk-delete state removed
 
   const units = ['kg', 'g', 'piece', 'pack', 'bunch', 'bundle', 'box', 'tray', 'liter', 'ml', 'lb', 'can', 'bottle'];
 
@@ -53,22 +47,7 @@ const DTIPriceManagement = () => {
     }
   }, [user, loadRecords]);
 
-  const handleManualSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      await dtiAPI.manualEntry({
-        product_name: manualForm.product_name,
-        price_low: parseFloat(manualForm.price_low),
-        price_high: parseFloat(manualForm.price_high) || parseFloat(manualForm.price_low),
-        unit: manualForm.unit
-      });
-      setFlashMessages([{ category: 'success', text: 'Price record added successfully!' }]);
-      setManualForm({ product_name: '', price_low: '', price_high: '', unit: 'kg' });
-      loadRecords();
-    } catch (error) {
-      setFlashMessages([{ category: 'error', text: error.response?.data?.error || 'Failed to add price record.' }]);
-    }
-  };
+  // manual entry removed
 
   const handlePdfUpload = async (e) => {
     e.preventDefault();
@@ -99,99 +78,66 @@ const DTIPriceManagement = () => {
     }
   };
 
-  const handleBulkSubmit = async (e) => {
-    e.preventDefault();
-    const validRows = bulkRows.filter(r => r.product_name && r.price_low);
-    if (validRows.length === 0) {
-      setFlashMessages([{ category: 'error', text: 'Please fill in at least one row.' }]);
-      return;
-    }
-    try {
-      const records = validRows.map(r => ({
-        product_name: r.product_name,
-        price_low: parseFloat(r.price_low),
-        price_high: parseFloat(r.price_high) || parseFloat(r.price_low),
-        unit: r.unit
-      }));
-      const res = await dtiAPI.bulkEntry(records);
-      setFlashMessages([{ category: 'success', text: res.data.message }]);
-      setBulkRows([{ product_name: '', price_low: '', price_high: '', unit: 'kg' }]);
-      loadRecords();
-    } catch (error) {
-      setFlashMessages([{ category: 'error', text: error.response?.data?.error || 'Failed to add records.' }]);
-    }
-  };
+  // bulk entry removed
 
-  const addBulkRow = () => {
-    setBulkRows([...bulkRows, { product_name: '', price_low: '', price_high: '', unit: 'kg' }]);
-  };
+  // bulk helpers removed
 
-  const removeBulkRow = (index) => {
-    setBulkRows(bulkRows.filter((_, i) => i !== index));
-  };
-
-  const updateBulkRow = (index, field, value) => {
-    const updated = [...bulkRows];
-    updated[index][field] = value;
-    setBulkRows(updated);
-  };
-
-  const deleteRecord = async (recordId, productName) => {
-    if (!window.confirm(`Delete price record for "${productName}"?`)) return;
-    try {
-      await dtiAPI.deleteRecord(recordId);
-      setFlashMessages([{ category: 'success', text: 'Record deleted.' }]);
-      setSelectedIds(prev => { const next = new Set(prev); next.delete(recordId); return next; });
-      loadRecords();
-    } catch (error) {
-      setFlashMessages([{ category: 'error', text: 'Failed to delete record.' }]);
-    }
-  };
-
-  const handleSelectAll = (checked) => {
-    if (checked) {
-      setSelectedIds(new Set(filteredRecords.map(r => r._id)));
-    } else {
-      setSelectedIds(new Set());
-    }
-  };
-
-  const handleSelectOne = (id, checked) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (checked) next.add(id); else next.delete(id);
-      return next;
-    });
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-    const allSelected = selectedIds.size === filteredRecords.length && filteredRecords.length === records.length;
-    const msg = allSelected
-      ? `Delete ALL ${records.length} DTI price records?`
-      : `Delete ${selectedIds.size} selected record(s)?`;
-    if (!window.confirm(msg)) return;
-    try {
-      setLoading(true);
-      if (allSelected) {
-        await dtiAPI.bulkDelete([], true);
-      } else {
-        await dtiAPI.bulkDelete([...selectedIds]);
-      }
-      setFlashMessages([{ category: 'success', text: `${selectedIds.size} record(s) deleted.` }]);
-      setSelectedIds(new Set());
-      setBulkDeleteMode(false);
-      loadRecords();
-    } catch (error) {
-      setFlashMessages([{ category: 'error', text: error.response?.data?.error || 'Failed to delete records.' }]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Delete functions intentionally removed — records are preserved on uploads
 
   const filteredRecords = records.filter(rec =>
     !searchQuery || rec.product_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Build list of records after applying optional date filter
+  const recordsAfterDateFilter = (() => {
+    if (!selectedDate) return filteredRecords;
+    // selectedDate is yyyy-mm-dd
+    return filteredRecords.filter(rec => {
+      if (!rec.uploaded_at) return false;
+      const d = new Date(rec.uploaded_at);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}` === selectedDate;
+    });
+  })();
+
+  // Compute newest record per product (by uploaded_at) from recordsAfterDateFilter
+  const newestPerProduct = (() => {
+    const m = new Map();
+    for (const rec of recordsAfterDateFilter) {
+      const key = rec.product_name_lower || (rec.product_name || '').toLowerCase().trim();
+      const ts = rec.uploaded_at ? (new Date(rec.uploaded_at)).getTime() : 0;
+      const existing = m.get(key);
+      if (!existing) {
+        m.set(key, rec);
+      } else {
+        const existingTs = existing.uploaded_at ? (new Date(existing.uploaded_at)).getTime() : 0;
+        if (ts >= existingTs) m.set(key, rec);
+      }
+    }
+    return Array.from(m.values());
+  })();
+
+  // Which records to display in the main table
+  // If a date is selected -> show records for that date
+  // If a search query is present -> show all matching records (historical included)
+  // Otherwise -> show newest-per-product
+  const displayedRecords = selectedDate ? recordsAfterDateFilter : (searchQuery ? filteredRecords : newestPerProduct);
+
+  // Unique upload dates available (yyyy-mm-dd) for quick select
+  const availableDates = (() => {
+    const s = new Set();
+    for (const rec of records) {
+      if (!rec.uploaded_at) continue;
+      const d = new Date(rec.uploaded_at);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      s.add(`${yyyy}-${mm}-${dd}`);
+    }
+    return Array.from(s).sort().reverse();
+  })();
 
   // Group records by batch
   const batches = {};
@@ -207,6 +153,28 @@ const DTIPriceManagement = () => {
     }
     batches[key].records.push(rec);
   });
+
+  // Delete currently displayed records (soft-delete via backend)
+  const deleteDisplayedRecords = async () => {
+    if (!window.confirm(`Delete ${displayedRecords.length} displayed record(s)? This will deactivate them.`)) return;
+    if (!displayedRecords || displayedRecords.length === 0) return;
+    try {
+      setLoading(true);
+      const ids = displayedRecords.map(r => r._id).filter(Boolean);
+      if (ids.length === 0) {
+        setFlashMessages([{ category: 'error', text: 'No valid records to delete.' }]);
+        return;
+      }
+      const res = await dtiAPI.bulkDelete(ids, false);
+      setFlashMessages([{ category: 'success', text: res.data?.message || `${ids.length} record(s) deleted.` }]);
+      // reload records
+      await loadRecords();
+    } catch (error) {
+      setFlashMessages([{ category: 'error', text: error.response?.data?.error || 'Failed to delete records.' }]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!user || !user.is_admin) {
     return (
@@ -249,8 +217,6 @@ const DTIPriceManagement = () => {
             {[
               { key: 'records', icon: 'fas fa-list', label: 'Price Records' },
               { key: 'upload', icon: 'fas fa-file-pdf', label: 'Upload PDF' },
-              { key: 'manual', icon: 'fas fa-keyboard', label: 'Manual Entry' },
-              { key: 'bulk', icon: 'fas fa-table', label: 'Bulk Entry' },
             ].map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                 style={{
@@ -274,29 +240,30 @@ const DTIPriceManagement = () => {
                   <i className="fas fa-database"></i> DTI Price Records ({filteredRecords.length})
                 </h2>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  {bulkDeleteMode ? (
-                    <>
-                      <button onClick={handleBulkDelete}
-                        className="btn btn-danger" disabled={selectedIds.size === 0}
-                        style={{ fontSize: '0.85rem', padding: '8px 16px', opacity: selectedIds.size === 0 ? 0.5 : 1 }}>
-                        <i className="fas fa-trash"></i> Delete Selected ({selectedIds.size})
-                      </button>
-                      <button onClick={() => { setBulkDeleteMode(false); setSelectedIds(new Set()); }}
-                        className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '8px 16px' }}>
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <button onClick={() => setBulkDeleteMode(true)}
-                      className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '8px 16px', color: '#dc3545', borderColor: '#dc3545' }}>
-                      <i className="fas fa-trash-alt"></i> Bulk Delete
-                    </button>
-                  )}
                   <input
                     type="text" placeholder="Search products..."
                     value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                     style={{ padding: '8px 16px', border: '1px solid #ddd', borderRadius: '6px', width: '250px' }}
                   />
+                  
+                  <select value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
+                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd' }}>
+                    <option value="">All Dates</option>
+                    {availableDates.map(d => (
+                      <option key={d} value={d}>{new Date(d).toLocaleDateString()}</option>
+                    ))}
+                  </select>
+                  <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
+                    style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #ddd' }} />
+                  <button onClick={() => setSelectedDate('')} className="btn btn-outline" style={{ padding: '6px 10px' }}>Clear</button>
+                  <button onClick={deleteDisplayedRecords}
+                    className="btn btn-danger" disabled={displayedRecords.length === 0 || loading}
+                    style={{ padding: '6px 10px', background: '#dc3545', color: '#fff', border: 'none' }}>
+                    <i className="fas fa-trash"></i> Delete Displayed ({displayedRecords.length})
+                  </button>
+                  <div style={{ color: '#666', fontSize: '0.9rem' }}>
+                    Showing <strong>{displayedRecords.length}</strong> of <strong>{filteredRecords.length}</strong> record(s)
+                  </div>
                 </div>
               </div>
 
@@ -305,21 +272,11 @@ const DTIPriceManagement = () => {
                   <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: '#4CAF50' }}></i>
                   <p>Loading records...</p>
                 </div>
-              ) : filteredRecords.length > 0 ? (
+              ) : displayedRecords.length > 0 ? (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                     <thead>
                       <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                        {bulkDeleteMode && (
-                          <th style={thStyle}>
-                            <input type="checkbox"
-                              checked={filteredRecords.length > 0 && filteredRecords.every(r => selectedIds.has(r._id))}
-                              onChange={(e) => handleSelectAll(e.target.checked)}
-                              title="Select all"
-                              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                            />
-                          </th>
-                        )}
                         <th style={thStyle}>Product Name</th>
                         <th style={thStyle}>Price Low</th>
                         <th style={thStyle}>Price High</th>
@@ -327,24 +284,11 @@ const DTIPriceManagement = () => {
                         <th style={thStyle}>Unit</th>
                         <th style={thStyle}>Source</th>
                         <th style={thStyle}>Date</th>
-                        <th style={thStyle}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredRecords.map((rec, i) => (
-                        <tr key={rec._id || i} style={{
-                          borderBottom: '1px solid #eee',
-                          background: bulkDeleteMode && selectedIds.has(rec._id) ? '#e8f5e9' : 'transparent'
-                        }}>
-                          {bulkDeleteMode && (
-                            <td style={tdStyle}>
-                              <input type="checkbox"
-                                checked={selectedIds.has(rec._id)}
-                                onChange={(e) => handleSelectOne(rec._id, e.target.checked)}
-                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                              />
-                            </td>
-                          )}
+                      {displayedRecords.map((rec, i) => (
+                        <tr key={rec._id || i} style={{ borderBottom: '1px solid #eee' }}>
                           <td style={tdStyle}><strong>{rec.product_name}</strong></td>
                           <td style={tdStyle}>₱{rec.price_low?.toFixed(2)}</td>
                           <td style={tdStyle}>₱{rec.price_high?.toFixed(2)}</td>
@@ -360,12 +304,7 @@ const DTIPriceManagement = () => {
                               {rec.uploaded_at ? new Date(rec.uploaded_at).toLocaleDateString() : '-'}
                             </span>
                           </td>
-                          <td style={tdStyle}>
-                            <button onClick={() => deleteRecord(rec._id, rec.product_name)}
-                              className="btn btn-danger btn-small" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                              <i className="fas fa-trash"></i>
-                            </button>
-                          </td>
+                          
                         </tr>
                       ))}
                     </tbody>
@@ -456,119 +395,7 @@ const DTIPriceManagement = () => {
             </div>
           )}
 
-          {/* TAB: Manual Entry */}
-          {activeTab === 'manual' && (
-            <div className="profile-card">
-              <h2><i className="fas fa-keyboard"></i> Manual Price Entry</h2>
-              <p style={{ color: '#666', marginBottom: '20px' }}>
-                Manually add a DTI SRP record for a product.
-              </p>
-
-              <form onSubmit={handleManualSubmit}>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Product Name</label>
-                    <input type="text" placeholder="e.g., Tomato, Well-milled Rice"
-                      value={manualForm.product_name}
-                      onChange={(e) => setManualForm({ ...manualForm, product_name: e.target.value })}
-                      required />
-                  </div>
-                  <div className="form-group">
-                    <label>Unit</label>
-                    <select value={manualForm.unit} onChange={(e) => setManualForm({ ...manualForm, unit: e.target.value })}>
-                      {units.map(u => <option key={u} value={u}>{u}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>DTI Price Low (₱)</label>
-                    <input type="number" step="0.01" min="0.01" placeholder="e.g., 50.00"
-                      value={manualForm.price_low}
-                      onChange={(e) => setManualForm({ ...manualForm, price_low: e.target.value })}
-                      required />
-                  </div>
-                  <div className="form-group">
-                    <label>DTI Price High (₱)</label>
-                    <input type="number" step="0.01" min="0.01" placeholder="e.g., 65.00"
-                      value={manualForm.price_high}
-                      onChange={(e) => setManualForm({ ...manualForm, price_high: e.target.value })} />
-                    <small style={{ color: '#888' }}>Leave empty to use same as low price</small>
-                  </div>
-                </div>
-                <button type="submit" className="btn btn-primary" style={{ marginTop: '16px' }}>
-                  <i className="fas fa-plus"></i> Add Price Record
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* TAB: Bulk Entry */}
-          {activeTab === 'bulk' && (
-            <div className="profile-card">
-              <h2><i className="fas fa-table"></i> Bulk Price Entry</h2>
-              <p style={{ color: '#666', marginBottom: '20px' }}>
-                Add multiple DTI price records at once.
-              </p>
-
-              <form onSubmit={handleBulkSubmit}>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ background: '#f8f9fa' }}>
-                        <th style={thStyle}>Product Name</th>
-                        <th style={thStyle}>Price Low (₱)</th>
-                        <th style={thStyle}>Price High (₱)</th>
-                        <th style={thStyle}>Unit</th>
-                        <th style={thStyle}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bulkRows.map((row, i) => (
-                        <tr key={i}>
-                          <td style={tdStyle}>
-                            <input type="text" placeholder="Product name" value={row.product_name}
-                              onChange={(e) => updateBulkRow(i, 'product_name', e.target.value)}
-                              style={{ width: '100%', padding: '6px 10px', border: '1px solid #ddd', borderRadius: '4px' }} />
-                          </td>
-                          <td style={tdStyle}>
-                            <input type="number" step="0.01" min="0" placeholder="0.00" value={row.price_low}
-                              onChange={(e) => updateBulkRow(i, 'price_low', e.target.value)}
-                              style={{ width: '100px', padding: '6px 10px', border: '1px solid #ddd', borderRadius: '4px' }} />
-                          </td>
-                          <td style={tdStyle}>
-                            <input type="number" step="0.01" min="0" placeholder="0.00" value={row.price_high}
-                              onChange={(e) => updateBulkRow(i, 'price_high', e.target.value)}
-                              style={{ width: '100px', padding: '6px 10px', border: '1px solid #ddd', borderRadius: '4px' }} />
-                          </td>
-                          <td style={tdStyle}>
-                            <select value={row.unit} onChange={(e) => updateBulkRow(i, 'unit', e.target.value)}
-                              style={{ padding: '6px 10px', border: '1px solid #ddd', borderRadius: '4px' }}>
-                              {units.map(u => <option key={u} value={u}>{u}</option>)}
-                            </select>
-                          </td>
-                          <td style={tdStyle}>
-                            {bulkRows.length > 1 && (
-                              <button type="button" onClick={() => removeBulkRow(i)}
-                                style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer' }}>
-                                <i className="fas fa-minus"></i>
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
-                  <button type="button" className="btn btn-outline" onClick={addBulkRow}>
-                    <i className="fas fa-plus"></i> Add Row
-                  </button>
-                  <button type="submit" className="btn btn-primary">
-                    <i className="fas fa-save"></i> Save All Records
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
+          
         </div>
       </section>
 

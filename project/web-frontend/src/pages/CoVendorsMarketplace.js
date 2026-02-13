@@ -4,7 +4,8 @@ import { productsAPI, cartAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 
-const Products = () => {
+const CoVendorsMarketplace = () => {
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -16,7 +17,6 @@ const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [flashMessages, setFlashMessages] = useState([]);
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   const categories = [
     'Vegetables', 'Fruits', 'Grains & Cereals', 'Dairy & Eggs', 'Meat & Poultry',
@@ -27,10 +27,10 @@ const Products = () => {
   const loadProducts = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await productsAPI.getAll();
-      setProducts(response.data || []);
+      const response = await productsAPI.getCovendors();
+      setProducts(response.data?.products || []);
     } catch (error) {
-      console.error('Error loading products:', error);
+      console.error('Error loading co-vendor products:', error);
       setProducts([]);
     } finally {
       setIsLoading(false);
@@ -61,7 +61,6 @@ const Products = () => {
       filtered = filtered.filter(product => parseFloat(product.price) <= parseFloat(maxPrice));
     }
 
-    // Sort
     if (sortBy === 'price_low') {
       filtered.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
     } else if (sortBy === 'price_high') {
@@ -70,7 +69,7 @@ const Products = () => {
       filtered.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortBy === 'name_desc') {
       filtered.sort((a, b) => b.name.localeCompare(a.name));
-    } else { // newest
+    } else {
       filtered.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     }
 
@@ -78,7 +77,6 @@ const Products = () => {
   }, [products, searchQuery, selectedCategory, minPrice, maxPrice, sortBy]);
 
   useEffect(() => {
-    // Load from URL params
     const category = searchParams.get('category');
     const search = searchParams.get('search');
     const min = searchParams.get('min_price');
@@ -91,8 +89,10 @@ const Products = () => {
     if (max) setMaxPrice(max);
     if (sort) setSortBy(sort);
 
-    loadProducts();
-  }, [searchParams, loadProducts]);
+    // Only load if user is farmer; otherwise leave empty
+    if (user && user.is_farmer) loadProducts();
+    else setIsLoading(false);
+  }, [searchParams, loadProducts, user]);
 
   useEffect(() => {
     filterProducts();
@@ -101,11 +101,8 @@ const Products = () => {
   const handleCategoryClick = (category) => {
     setSelectedCategory(selectedCategory === category ? null : category);
     const params = new URLSearchParams(searchParams);
-    if (selectedCategory === category) {
-      params.delete('category');
-    } else {
-      params.set('category', category);
-    }
+    if (selectedCategory === category) params.delete('category');
+    else params.set('category', category);
     setSearchParams(params);
   };
 
@@ -144,12 +141,27 @@ const Products = () => {
     }
   };
 
-  return (
-    <div className="products-page">
-      {/* Navigation Bar */}
-      <Navbar activePage="products" />
+  if (!user || !user.is_farmer) {
+    return (
+      <div>
+        <Navbar />
+        <section className="products-page">
+          <div className="container">
+            <div style={{ padding: 40, textAlign: 'center' }}>
+              <h3>Co-Vendors Marketplace</h3>
+              <p>Only users with a farmer account can view co-vendor listings.</p>
+              <Link to="/start-selling" className="btn btn-primary">Become a Farmer</Link>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
-      {/* Flash Messages */}
+  return (
+    <div className="products-page vendors-shop">
+      <Navbar activePage="co-vendors" />
+
       {flashMessages.length > 0 && (
         <div className="flash-messages">
           {flashMessages.map((message, index) => (
@@ -168,10 +180,13 @@ const Products = () => {
         </div>
       )}
 
-      {/* Products Section */}
       <section className="products-page-main">
         <div className="container">
-          {/* Search and Filter - Above Products */}
+          <div style={{ marginBottom: '12px' }}>
+            <h2 style={{ margin: 0 }}><i className="fas fa-store"></i> Vendors Marketplace</h2>
+            <small style={{ color: '#6b7280' }}><strong>Note:</strong> Prices suggested from DTI SRP use a 15% markup in the Vendors Marketplace.</small>
+          </div>
+
           <div style={{ marginBottom: '30px', padding: '20px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #e0e0e0' }}>
             <h3 style={{ marginTop: 0, marginBottom: '20px', fontSize: '1.1rem', fontWeight: '600' }}>
               <i className="fas fa-filter"></i> Search & Filter Products
@@ -274,12 +289,11 @@ const Products = () => {
           </div>
 
           <div className="products-layout" style={{ display: 'block' }}>
-            {/* Products Grid */}
             <main className="products-main" style={{ width: '100%' }}>
               {isLoading ? (
                 <div className="loading-spinner" style={{ textAlign: 'center', padding: '4rem' }}>
                   <i className="fas fa-spinner fa-spin" style={{ fontSize: '3rem', color: '#4CAF50' }}></i>
-                  <p style={{ marginTop: '1rem', color: '#666' }}>Loading products...</p>
+                  <p style={{ marginTop: '1rem', color: '#666' }}>Loading vendors products...</p>
                 </div>
               ) : filteredProducts.length > 0 ? (
                 <>
@@ -354,25 +368,16 @@ const Products = () => {
                             <span className="product-price">
                               <i className="fas fa-tag"></i> ₱{parseFloat(product.price).toFixed(2)}/{product.unit || 'unit'}
                             </span>
-                            <span
-                              className="product-quantity"
-                              style={{ color: product.quantity < 20 ? '#ff6b6b' : '#4CAF50' }}
-                            >
+                            <span className="product-quantity" style={{ color: product.quantity < 20 ? '#ff6b6b' : '#4CAF50' }}>
                               <i className="fas fa-box"></i> {product.quantity || 0} {product.unit || 'unit'} available
                             </span>
                           </div>
 
                           <div className="product-actions">
-                            <Link
-                              to={`/product/${product.id || product._id}`}
-                              className="btn btn-outline btn-small"
-                            >
+                            <Link to={`/product/${product.id || product._id}`} className="btn btn-outline btn-small">
                               <i className="fas fa-eye"></i> View Details
                             </Link>
-                            <button
-                              className="btn btn-primary btn-small"
-                              onClick={() => handleAddToCart(product.id || product._id, product.name)}
-                            >
+                            <button className="btn btn-primary btn-small" onClick={() => handleAddToCart(product.id || product._id, product.name)}>
                               <i className="fas fa-shopping-cart"></i> Add to Cart
                             </button>
                           </div>
@@ -389,20 +394,14 @@ const Products = () => {
                     {selectedCategory ? (
                       <>No products available in the "{selectedCategory}" category at the moment.</>
                     ) : (
-                      <>There are no products available at the moment.</>
+                      <>There are no vendor products available at the moment.</>
                     )}
                   </p>
-                  {selectedCategory ? (
-                    <button onClick={() => handleReset()} className="btn btn-primary">
-                      <i className="fas fa-th-large"></i> View All Products
-                    </button>
-                  ) : (
-                    <div style={{ background: '#f8f9fa', padding: '1.5rem', borderRadius: '8px', marginTop: '2rem', maxWidth: '500px', margin: '2rem auto 0' }}>
-                      <p style={{ margin: 0, color: '#666' }}>
-                        <i className="fas fa-info-circle"></i> Products will appear here once farmers add them to the marketplace.
-                      </p>
-                    </div>
-                  )}
+                  <div style={{ background: '#f8f9fa', padding: '1.5rem', borderRadius: '8px', marginTop: '2rem', maxWidth: '500px', margin: '2rem auto 0' }}>
+                    <p style={{ margin: 0, color: '#666' }}>
+                      <i className="fas fa-info-circle"></i> Vendors will appear here once farmers add them to the Vendors Marketplace.
+                    </p>
+                  </div>
                 </div>
               )}
             </main>
@@ -410,7 +409,6 @@ const Products = () => {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="footer">
         <div className="container">
           <div className="footer-content">
@@ -453,4 +451,4 @@ const Products = () => {
   );
 };
 
-export default Products;
+export default CoVendorsMarketplace;

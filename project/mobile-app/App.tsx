@@ -99,7 +99,7 @@ export default function App() {
           <Stack.Screen
             name="Register"
             component={RegisterScreen}
-            options={{ title: 'Create Account' }}
+            options={{ title: 'Create Account', headerShown: false }}
           />
           <Stack.Screen
             name="MainTabs"

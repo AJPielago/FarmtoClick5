@@ -216,9 +216,43 @@ def api_products():
         if db is None:
             return jsonify({'error': 'Database connection failed'}), 500
 
-        products_cursor = db.products.find({'available': True}).sort('created_at', -1)
+        # Only include products visible to customers (either no audience set or audience includes 'customers')
+        products_cursor = db.products.find({
+            'available': True,
+            '$or': [
+                {'audience': {'$exists': False}},
+                {'audience': 'customers'}
+            ]
+        }).sort('created_at', -1)
         products = []
+        from bson import ObjectId
         for p in products_cursor:
+            # attempt to resolve farmer display name from product doc or users collection
+            farmer_name = p.get('farmer_name', '')
+            farmer_info = None
+            if not farmer_name:
+                # possible farmer id fields
+                possible_ids = [p.get(k) for k in ('farmer', 'farmer_user_id', 'farmer_id', 'farmerId', 'seller_id', 'sellerId') if p.get(k)]
+                found = None
+                for fid in possible_ids:
+                    try:
+                        if ObjectId.is_valid(str(fid)):
+                            found = db.users.find_one({'_id': ObjectId(str(fid))})
+                        else:
+                            found = db.users.find_one({'id': str(fid)}) or db.users.find_one({'email': str(fid)})
+                    except Exception:
+                        found = db.users.find_one({'id': str(fid)})
+                    if found:
+                        break
+                if found:
+                    farmer_name = f"{found.get('first_name','').strip()} {found.get('last_name','').strip()}".strip() or found.get('farm_name') or found.get('name') or ''
+                    farmer_info = {
+                        'id': str(found.get('_id') or found.get('id') or ''),
+                        'farm_name': found.get('farm_name', ''),
+                        'name': farmer_name,
+                        'location': found.get('farm_location') or found.get('overall_location') or found.get('location') or ''
+                    }
+
             products.append({
                 'id': str(p.get('_id', '')),
                 'name': p.get('name', ''),
@@ -226,7 +260,8 @@ def api_products():
                 'price': p.get('price', 0),
                 'image': p.get('image', ''),
                 'image_url': p.get('image_url', '') if p.get('image_url') else '',
-                'farmer_name': p.get('farmer_name', ''),
+                'farmer_name': farmer_name or '',
+                'farmer': farmer_info,
                 'category': p.get('category', ''),
                 'quantity': p.get('quantity', 0),
                 'unit': p.get('unit', ''),
@@ -249,6 +284,32 @@ def api_product_detail(product_id):
         if not product:
             return jsonify({'error': 'Product not found'}), 404
 
+        from bson import ObjectId
+        # resolve farmer name if not present
+        farmer_name = product.get('farmer_name', '')
+        farmer_info = None
+        if not farmer_name:
+            possible_ids = [product.get(k) for k in ('farmer', 'farmer_user_id', 'farmer_id', 'farmerId', 'seller_id', 'sellerId') if product.get(k)]
+            found = None
+            for fid in possible_ids:
+                try:
+                    if ObjectId.is_valid(str(fid)):
+                        found = db.users.find_one({'_id': ObjectId(str(fid))})
+                    else:
+                        found = db.users.find_one({'id': str(fid)}) or db.users.find_one({'email': str(fid)})
+                except Exception:
+                    found = db.users.find_one({'id': str(fid)})
+                if found:
+                    break
+            if found:
+                farmer_name = f"{found.get('first_name','').strip()} {found.get('last_name','').strip()}".strip() or found.get('farm_name') or found.get('name') or ''
+                farmer_info = {
+                    'id': str(found.get('_id') or found.get('id') or ''),
+                    'farm_name': found.get('farm_name', ''),
+                    'name': farmer_name,
+                    'location': found.get('farm_location') or found.get('overall_location') or found.get('location') or ''
+                }
+
         return jsonify({
             'id': str(product['_id']),
             'name': product.get('name', ''),
@@ -256,7 +317,8 @@ def api_product_detail(product_id):
             'price': product.get('price', 0),
             'image': product.get('image', ''),
             'image_url': product.get('image_url', '') if product.get('image_url') else '',
-            'farmer_name': product.get('farmer_name', ''),
+            'farmer_name': farmer_name or '',
+            'farmer': farmer_info,
             'category': product.get('category', ''),
             'quantity': product.get('quantity', 0),
             'unit': product.get('unit', ''),
@@ -393,6 +455,55 @@ def api_update_profile():
                 'farm_description': getattr(user, 'farm_description', ''),
             },
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/user/notifications', methods=['GET'])
+@token_required
+def api_user_notifications():
+    try:
+        db, _ = get_mongodb_db(api_bp)
+        if db is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        # Fetch recent notifications for the logged-in user
+        cursor = db.notifications.find({'user_email': request.user_email}).sort('created_at', -1).limit(50)
+        notifs = []
+        for n in cursor:
+            created_at = n.get('created_at')
+            created_at_iso = created_at.isoformat() if hasattr(created_at, 'isoformat') else (created_at if created_at else None)
+            notifs.append({
+                'id': str(n.get('_id')),
+                'subject': n.get('subject', ''),
+                'message': n.get('message', ''),
+                'read': bool(n.get('read', False)),
+                'created_at': created_at_iso
+            })
+        return jsonify(notifs)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/user/notifications/<notif_id>/read', methods=['POST'])
+@token_required
+def api_mark_notification_read(notif_id):
+    try:
+        from bson.objectid import ObjectId
+
+        db, _ = get_mongodb_db(api_bp)
+        if db is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        try:
+            oid = ObjectId(notif_id)
+        except Exception:
+            return jsonify({'error': 'Invalid notification id'}), 400
+
+        res = db.notifications.update_one({'_id': oid, 'user_email': request.user_email}, {'$set': {'read': True}})
+        if res.matched_count == 0:
+            return jsonify({'error': 'Notification not found'}), 404
+        return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1129,6 +1240,8 @@ def api_farmer_add_product():
         price_raw = request.form.get('price', '').strip()
         quantity_raw = request.form.get('quantity', '').strip()
         available = request.form.get('available') in ('on', 'true', '1', 'yes')
+        # audience may be submitted multiple times (checkboxes). default to ['customers']
+        audience_list = request.form.getlist('audience') or ['customers']
 
         if not name or not description or not category or not unit:
             return jsonify({'error': 'Name, description, category, and unit are required'}), 400
@@ -1173,6 +1286,7 @@ def api_farmer_add_product():
             'unit': unit,
             'category': category,
             'available': available,
+            'audience': audience_list,
             'image_url': image_url,
             'farmer': str(user.id),
             'farmer_user_id': str(user.id),
@@ -1239,6 +1353,10 @@ def api_farmer_update_product(product_id):
 
         if 'available' in request.form:
             update_doc['available'] = request.form.get('available') in ('on', 'true', '1', 'yes')
+        # Update audience if provided (may be multiple values)
+        if 'audience' in request.form:
+            audience_list = request.form.getlist('audience') or []
+            update_doc['audience'] = audience_list
 
         image_file = request.files.get('image')
         if image_file and image_file.filename:
@@ -1439,12 +1557,89 @@ def api_dti_suggest_price():
         product_name = request.args.get('name', '').strip()
         unit = request.args.get('unit', 'kg').strip()
         category = request.args.get('category', '').strip()
+        audience = request.args.get('audience', '').strip().lower()  # optional: 'co-vendors' or 'customers'
 
         if not product_name:
             return jsonify({'error': 'Product name is required'}), 400
 
-        result = suggest_price(db, product_name, unit=unit, category=category)
+        # If audience is co-vendors, use 15% markup override
+        if audience == 'co-vendors':
+            result = suggest_price(db, product_name, unit=unit, category=category, markup_override=0.15)
+        else:
+            result = suggest_price(db, product_name, unit=unit, category=category)
         return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ------------------------------------------------------------------
+# Co-vendors marketplace (farmer-only)
+# ------------------------------------------------------------------
+@api_bp.route('/products/covendors', methods=['GET'])
+@token_required
+def api_products_covendors():
+    try:
+        from user_model import User
+
+        db, _ = get_mongodb_db(api_bp)
+        if db is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        user = User.get_by_email(db, request.user_email)
+        if not user or getattr(user, 'role', 'user') != 'farmer':
+            return jsonify({'error': 'Not authorized'}), 403
+
+        # Find products that have been marked visible to co-vendors
+        from bson import ObjectId
+        products = list(db.products.find({'audience': 'co-vendors', 'available': True}).sort('created_at', -1))
+        out = []
+        for p in products:
+            p['_id'] = str(p.get('_id'))
+            p['id'] = p.get('id') or p['_id']
+            farmer_name = p.get('farmer_name', '')
+            farmer_info = None
+            if not farmer_name:
+                possible_ids = [p.get(k) for k in ('farmer', 'farmer_user_id', 'farmer_id', 'farmerId', 'seller_id', 'sellerId') if p.get(k)]
+                found = None
+                for fid in possible_ids:
+                    try:
+                        if ObjectId.is_valid(str(fid)):
+                            found = db.users.find_one({'_id': ObjectId(str(fid))})
+                        else:
+                            found = db.users.find_one({'id': str(fid)}) or db.users.find_one({'email': str(fid)})
+                    except Exception:
+                        found = db.users.find_one({'id': str(fid)})
+                    if found:
+                        break
+                if found:
+                    farmer_name = f"{found.get('first_name','').strip()} {found.get('last_name','').strip()}".strip() or found.get('farm_name') or found.get('name') or ''
+                    farmer_info = {
+                        'id': str(found.get('_id') or found.get('id') or ''),
+                        'farm_name': found.get('farm_name', ''),
+                        'name': farmer_name,
+                        'location': found.get('farm_location') or found.get('overall_location') or found.get('location') or ''
+                    }
+            # Determine display price for co-vendors: prefer DTI-suggested price with 15% markup
+            stored_price = p.get('price', 0)
+            display_price = stored_price
+            try:
+                from dti_price_engine import suggest_price
+                dti_res = suggest_price(db, p.get('name', ''), unit=p.get('unit', 'kg'), category=p.get('category', ''), markup_override=0.15)
+                if isinstance(dti_res, dict) and dti_res.get('found') and dti_res.get('auto_price'):
+                    display_price = dti_res.get('auto_price')
+            except Exception:
+                # If DTI suggestion fails, keep stored price
+                display_price = stored_price
+
+            out.append({
+                    **{k: (p.get(k) or '') for k in ('id','name','description','image','image_url','category','location')},
+                    'price': display_price,
+                    'farmer_name': farmer_name or '',
+                    'farmer': farmer_info,
+                    'quantity': p.get('quantity', 0),
+                    'unit': p.get('unit', ''),
+                })
+        return jsonify({'products': out})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

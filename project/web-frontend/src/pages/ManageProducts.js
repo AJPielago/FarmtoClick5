@@ -28,6 +28,7 @@ const ManageProducts = () => {
     unit: '',
     description: '',
     available: true,
+    audience: ['customers'],
     image: null,
   });
 
@@ -40,6 +41,7 @@ const ManageProducts = () => {
     unit: '',
     description: '',
     available: true,
+    audience: ['customers'],
     image: null,
   });
 
@@ -79,7 +81,9 @@ const ManageProducts = () => {
     setSuggestionLoading(true);
     setPriceSuggestion(null);
     try {
-      const res = await dtiAPI.suggestPrice(name, unit || 'kg', category || '');
+      // Determine audience for markup: if co-vendors is checked and customers not selected, use co-vendors
+      const audienceParam = (addFormData.audience || []).includes('co-vendors') && !(addFormData.audience || []).includes('customers') ? 'co-vendors' : '';
+      const res = await dtiAPI.suggestPrice(name, unit || 'kg', category || '', audienceParam);
       const data = res.data;
       setPriceSuggestion(data);
       // Auto-fill the price field when a match is found
@@ -102,7 +106,8 @@ const ManageProducts = () => {
     setEditSuggestionLoading(true);
     setEditPriceSuggestion(null);
     try {
-      const res = await dtiAPI.suggestPrice(name, unit || 'kg', category || '');
+      const audienceParam = (editFormData.audience || []).includes('co-vendors') && !(editFormData.audience || []).includes('customers') ? 'co-vendors' : '';
+      const res = await dtiAPI.suggestPrice(name, unit || 'kg', category || '', audienceParam);
       const data = res.data;
       setEditPriceSuggestion(data);
       // Auto-fill the price field when a match is found
@@ -245,6 +250,7 @@ const ManageProducts = () => {
       unit: product.unit || '',
       description: product.description || '',
       available: product.available !== false,
+      audience: product.audience && product.audience.length ? product.audience : ['customers'],
       image: null,
     });
     setEditPriceSuggestion(null);
@@ -268,6 +274,8 @@ const ManageProducts = () => {
           formData.append('image', addFormData.image);
         } else if (key === 'available') {
           formData.append('available', addFormData.available ? 'true' : 'false');
+        } else if (key === 'audience') {
+          (addFormData.audience || []).forEach(val => formData.append('audience', val));
         } else {
           formData.append(key, addFormData[key]);
         }
@@ -293,6 +301,8 @@ const ManageProducts = () => {
           formData.append('image', editFormData.image);
         } else if (key === 'available') {
           formData.append('available', editFormData.available ? 'true' : 'false');
+        } else if (key === 'audience') {
+          (editFormData.audience || []).forEach(val => formData.append('audience', val));
         } else {
           formData.append(key, editFormData[key]);
         }
@@ -462,6 +472,7 @@ const ManageProducts = () => {
                     <th>Price</th>
                     <th>Quantity</th>
                     <th>Status</th>
+                    <th>Audience</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -486,6 +497,7 @@ const ManageProducts = () => {
                           {product.available !== false ? 'Available' : 'Out of Stock'}
                         </span>
                       </td>
+                      <td>{(product.audience && product.audience.length) ? product.audience.map(a => a.charAt(0).toUpperCase()+a.slice(1)).join(', ') : 'Customers'}</td>
                       <td>
                         <button className="btn btn-outline btn-small" onClick={() => openEditModal(product)} style={{ marginRight: 8 }}>
                           <i className="fas fa-pen"></i>
@@ -604,8 +616,14 @@ const ManageProducts = () => {
                     Price (₱)
                     {!suggestionLoading && priceSuggestion?.found && (
                       <span style={{ fontSize: '0.75rem', color: '#2e7d32', background: '#e8f5e9', padding: '2px 8px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <i className="fas fa-check-circle"></i> DTI Auto-Priced (+20%)
+                        <i className="fas fa-check-circle"></i> DTI Auto-Priced (+{priceSuggestion.markup_pct || priceSuggestion.markup_max_pct || 20}%)
                       </span>
+                    )}
+                    {/* If co-vendors was checked, show a note that pricing uses different markup */}
+                    {(addFormData.audience || []).includes('co-vendors') && (
+                      <small style={{ display: 'block', marginTop: '6px', color: '#6b7280' }}>
+                        Note: Vendors marketplace uses a lower markup (15%) — prices may differ from customer listings.
+                      </small>
                     )}
                   </label>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
@@ -674,6 +692,30 @@ const ManageProducts = () => {
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label htmlFor="modal_description">Product Description</label>
                   <textarea id="modal_description" rows="4" placeholder="Describe your product, its quality, origin, etc." value={addFormData.description} onChange={(e) => setAddFormData({ ...addFormData, description: e.target.value })} required />
+                </div>
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label>Visible To</label>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: 8 }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <input type="checkbox" checked={(addFormData.audience || []).includes('customers')} onChange={(e) => {
+                        const checked = e.target.checked;
+                        const next = new Set(addFormData.audience || []);
+                        if (checked) next.add('customers'); else next.delete('customers');
+                        setAddFormData({ ...addFormData, audience: Array.from(next) });
+                      }} />
+                      <span>Customers</span>
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <input type="checkbox" checked={(addFormData.audience || []).includes('co-vendors')} onChange={(e) => {
+                        const checked = e.target.checked;
+                        const next = new Set(addFormData.audience || []);
+                        if (checked) next.add('co-vendors'); else next.delete('co-vendors');
+                        setAddFormData({ ...addFormData, audience: Array.from(next) });
+                      }} />
+                      <span>Co-vendors</span>
+                    </label>
+                  </div>
+                  <small style={{ display: 'block', marginTop: 8, color: '#666' }}>Choose who can see this product. Farmers can use "Co-vendors" to share with other farmers.</small>
                 </div>
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
@@ -767,8 +809,13 @@ const ManageProducts = () => {
                     Price (₱)
                     {!editSuggestionLoading && editPriceSuggestion?.found && (
                       <span style={{ fontSize: '0.75rem', color: '#2e7d32', background: '#e8f5e9', padding: '2px 8px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <i className="fas fa-check-circle"></i> DTI Auto-Priced (+20%)
+                        <i className="fas fa-check-circle"></i> DTI Auto-Priced (+{editPriceSuggestion.markup_pct || editPriceSuggestion.markup_max_pct || 20}%)
                       </span>
+                    )}
+                    {(editFormData.audience || []).includes('co-vendors') && (
+                      <small style={{ display: 'block', marginTop: '6px', color: '#6b7280' }}>
+                        Note: Vendors marketplace uses a lower markup (15%) — prices may differ from customer listings.
+                      </small>
                     )}
                   </label>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
@@ -834,6 +881,30 @@ const ManageProducts = () => {
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label htmlFor="edit_description">Product Description</label>
                   <textarea id="edit_description" rows="4" value={editFormData.description} onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })} required />
+                </div>
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label>Visible To</label>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: 8 }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <input type="checkbox" checked={(editFormData.audience || []).includes('customers')} onChange={(e) => {
+                        const checked = e.target.checked;
+                        const next = new Set(editFormData.audience || []);
+                        if (checked) next.add('customers'); else next.delete('customers');
+                        setEditFormData({ ...editFormData, audience: Array.from(next) });
+                      }} />
+                      <span>Customers</span>
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <input type="checkbox" checked={(editFormData.audience || []).includes('co-vendors')} onChange={(e) => {
+                        const checked = e.target.checked;
+                        const next = new Set(editFormData.audience || []);
+                        if (checked) next.add('co-vendors'); else next.delete('co-vendors');
+                        setEditFormData({ ...editFormData, audience: Array.from(next) });
+                      }} />
+                      <span>Co-vendors</span>
+                    </label>
+                  </div>
+                  <small style={{ display: 'block', marginTop: 8, color: '#666' }}>Choose who can see this product. Farmers can use "Co-vendors" to share with other farmers.</small>
                 </div>
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>

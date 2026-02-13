@@ -6,6 +6,7 @@ import os
 import smtplib
 import ssl
 from datetime import datetime
+from db import get_mongodb_db
 from email.message import EmailMessage
 
 from reportlab.pdfgen import canvas
@@ -61,6 +62,32 @@ def send_system_email(app, to_email, subject, body, attachments=None, html_body=
             with smtplib.SMTP_SSL(mail_server, mail_port, context=context) as server:
                 server.login(mail_user, mail_pass)
                 server.send_message(msg)
+        # Create a short notification record in MongoDB for the recipient email
+        try:
+            db, _ = get_mongodb_db(app)
+            if db is not None:
+                snippet = (body or '').strip().replace('\n', ' ')
+                if len(snippet) > 120:
+                    snippet = snippet[:117] + '...'
+                if subject:
+                    notif_message = f"{subject} — check your email"
+                else:
+                    notif_message = f"{snippet[:100]} — check your email"
+
+                notif_doc = {
+                    'user_email': to_email,
+                    'subject': subject or '',
+                    'message': notif_message,
+                    'read': False,
+                    'created_at': datetime.utcnow(),
+                }
+                try:
+                    db.notifications.insert_one(notif_doc)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         return True
     except Exception as e:
         print(f"Email send error: {e}")
